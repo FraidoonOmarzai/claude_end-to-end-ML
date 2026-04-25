@@ -15,8 +15,8 @@ The goal is to learn ML deployment: from model training to production on AWS/K8s
 | 1 | EDA - Exploratory Data Analysis | ✅ Done |
 | 2 | ML Model Training | ✅ Done |
 | 3 | FastAPI Backend | ✅ Done |
-| 4 | Streamlit Frontend | ⏳ Next |
-| 5 | Docker | ⬜ Pending |
+| 4 | Streamlit Frontend | ✅ Done |
+| 5 | Docker | ⏳ Next |
 | 6 | Kubernetes | ⬜ Pending |
 | 7 | AWS (ECR, EKS) | ⬜ Pending |
 | 8 | CI/CD (GitHub Actions) | ⬜ Pending |
@@ -50,6 +50,7 @@ The goal is to learn ML deployment: from model training to production on AWS/K8s
 | `src/ml/train.py` | Model training |
 | `src/ml/predict.py` | Prediction module |
 | `src/api/main.py` | FastAPI backend |
+| `src/frontend/app.py` | Streamlit frontend |
 | `Makefile` | Common commands |
 
 ## Common Commands
