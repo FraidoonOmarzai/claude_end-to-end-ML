@@ -30,12 +30,12 @@ This guide walks you through building a complete ML classification project from 
 - [x] Exploratory Data Analysis (EDA)
 - [x] Understand the data
 
-### Step 2: ML Model Development
-- [ ] Data preprocessing
-- [ ] Train/test split
-- [ ] Train simple models (Logistic Regression, Decision Tree)
-- [ ] Model evaluation (accuracy, confusion matrix, classification report)
-- [ ] Save model using joblib
+### Step 2: ML Model Development ✅ COMPLETED
+- [x] Data preprocessing
+- [x] Train/test split
+- [x] Train simple models (Logistic Regression, Decision Tree)
+- [x] Model evaluation (accuracy, confusion matrix, classification report)
+- [x] Save model using joblib
 
 ### Step 3: FastAPI Backend
 - [ ] Create prediction API endpoint
@@ -389,17 +389,513 @@ sns.kdeplot(data=df['column'])      # Density
 
 ---
 
-## Next Step: Step 2 - ML Model Development
+# STEP 2: ML Model Development (DETAILED)
 
-In Step 2, we will:
-1. Create preprocessing pipeline
-2. Split data into train/test sets
-3. Train multiple models:
-   - Logistic Regression
-   - Decision Tree
-   - Random Forest
-4. Evaluate and compare models
-5. Save the best model
+## 2.1 Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/ml/train.py` | Complete training pipeline |
+| `src/ml/predict.py` | Prediction module for API use |
+| `models/iris_classifier.joblib` | Saved model artifact |
+
+## 2.2 The ML Training Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 ML TRAINING WORKFLOW                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
+│  │  Load    │───▶│  Split   │───▶│  Train   │              │
+│  │  Data    │    │  Data    │    │  Model   │              │
+│  └──────────┘    └──────────┘    └──────────┘              │
+│                                        │                    │
+│                                        ▼                    │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
+│  │  Save    │◀───│  Select  │◀───│ Evaluate │              │
+│  │  Model   │    │  Best    │    │  Models  │              │
+│  └──────────┘    └──────────┘    └──────────┘              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 2.3 Train/Test Split
+
+### What is Train/Test Split?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FULL DATASET (150 samples)               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────┬───────────────┐   │
+│  │         TRAINING SET (80%)          │  TEST SET     │   │
+│  │           120 samples               │  (20%)        │   │
+│  │                                     │  30 samples   │   │
+│  │   Used to TRAIN the model           │  Used to      │   │
+│  │   Model learns patterns here        │  EVALUATE     │   │
+│  │                                     │  performance  │   │
+│  └─────────────────────────────────────┴───────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Code Explanation
+
+```python
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,      # 20% for testing
+    random_state=42,    # Reproducibility
+    stratify=y          # Maintain class balance
+)
+```
+
+| Parameter | Value | Meaning |
+|-----------|-------|---------|
+| `test_size` | 0.2 | 20% of data for testing |
+| `random_state` | 42 | Same split every run (reproducible) |
+| `stratify` | y | Each class has same % in train and test |
+
+### Why Stratify?
+
+Without stratification, random split might give:
+- Training: 45 setosa, 50 versicolor, 25 virginica (unbalanced!)
+- Test: 5 setosa, 0 versicolor, 25 virginica (no versicolor!)
+
+With stratification:
+- Training: 40 setosa, 40 versicolor, 40 virginica (balanced)
+- Test: 10 setosa, 10 versicolor, 10 virginica (balanced)
+
+## 2.4 Preprocessing with StandardScaler
+
+### Why Scale Features?
+
+```
+Before Scaling:                  After Scaling:
+─────────────────               ─────────────────
+sepal_length: 4.3 - 7.9         sepal_length: -1.87 to 2.49
+sepal_width:  2.0 - 4.4         sepal_width:  -2.43 to 3.09
+petal_length: 1.0 - 6.9         petal_length: -1.56 to 1.78
+petal_width:  0.1 - 2.5         petal_width:  -1.44 to 1.71
+
+Features have different        All features have mean=0
+ranges!                        and std=1
+```
+
+### The Formula
+
+```
+z = (x - mean) / std
+
+Example:
+If sepal_length = 5.0, mean = 5.84, std = 0.83
+z = (5.0 - 5.84) / 0.83 = -1.01
+```
+
+### Why Does Scaling Matter?
+
+| Algorithm | Needs Scaling? | Why |
+|-----------|----------------|-----|
+| Logistic Regression | Yes | Gradient descent converges faster |
+| SVM | Yes | Distance-based, sensitive to scale |
+| Decision Tree | No | Split based on thresholds |
+| Random Forest | No | Ensemble of decision trees |
+| KNN | Yes | Distance-based |
+
+## 2.5 scikit-learn Pipelines
+
+### What is a Pipeline?
+
+A Pipeline chains preprocessing and model into one object:
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),      # Step 1: Scale
+    ('classifier', LogisticRegression()) # Step 2: Model
+])
+
+# Now fit and predict work on the whole pipeline
+pipeline.fit(X_train, y_train)
+predictions = pipeline.predict(X_test)
+```
+
+### Why Use Pipelines?
+
+```
+WITHOUT Pipeline (BAD):
+───────────────────────
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)  # Fit on training
+X_test_scaled = scaler.transform(X_test)        # Transform test
+model.fit(X_train_scaled, y_train)
+# Easy to make mistakes! What if you fit scaler on test data?
+
+WITH Pipeline (GOOD):
+─────────────────────
+pipeline.fit(X_train, y_train)   # Handles everything
+pipeline.predict(X_test)          # Automatically scales first
+# No data leakage possible!
+```
+
+## 2.6 The Three Models Explained
+
+### 1. Logistic Regression
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   LOGISTIC REGRESSION                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Despite the name, used for CLASSIFICATION (not regression)│
+│                                                             │
+│  How it works:                                              │
+│  1. Calculates weighted sum: z = w1*x1 + w2*x2 + ... + b    │
+│  2. Applies sigmoid: P = 1 / (1 + e^(-z))                   │
+│  3. Outputs probability between 0 and 1                     │
+│                                                             │
+│  Pros:                           Cons:                      │
+│  ✓ Fast to train                 ✗ Assumes linear boundary  │
+│  ✓ Interpretable                 ✗ May underfit complex data│
+│  ✓ Outputs probabilities                                    │
+│  ✓ Great baseline                                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2. Decision Tree
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DECISION TREE                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Makes decisions using if-else rules:                       │
+│                                                             │
+│                  [petal_length <= 2.5?]                     │
+│                     /           \                           │
+│                   YES            NO                         │
+│                   /               \                         │
+│              [SETOSA]      [petal_width <= 1.8?]            │
+│                               /           \                 │
+│                             YES            NO               │
+│                             /               \               │
+│                      [VERSICOLOR]      [VIRGINICA]          │
+│                                                             │
+│  Pros:                           Cons:                      │
+│  ✓ Easy to understand            ✗ Can overfit easily       │
+│  ✓ No scaling needed             ✗ Unstable (small changes) │
+│  ✓ Handles non-linear            ✗ Greedy algorithm         │
+│  ✓ Feature importance                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 3. Random Forest
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     RANDOM FOREST                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Ensemble of many decision trees:                           │
+│                                                             │
+│  ┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌────┐                    │
+│  │Tree│  │Tree│  │Tree│  │Tree│  │Tree│  ... (100 trees)   │
+│  │ 1  │  │ 2  │  │ 3  │  │ 4  │  │ 5  │                    │
+│  └──┬─┘  └──┬─┘  └──┬─┘  └──┬─┘  └──┬─┘                    │
+│     │       │       │       │       │                       │
+│     ▼       ▼       ▼       ▼       ▼                       │
+│  ┌──────────────────────────────────────┐                   │
+│  │           MAJORITY VOTE              │                   │
+│  │  (Most common prediction wins)       │                   │
+│  └──────────────────────────────────────┘                   │
+│                                                             │
+│  Pros:                           Cons:                      │
+│  ✓ More accurate                 ✗ Slower to train          │
+│  ✓ Less overfitting              ✗ Less interpretable       │
+│  ✓ Handles outliers              ✗ More memory              │
+│  ✓ Feature importance                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 2.7 Evaluation Metrics Deep Dive
+
+### Confusion Matrix
+
+```
+                        PREDICTED
+                 Setosa  Versicolor  Virginica
+              ┌────────┬───────────┬──────────┐
+     Setosa   │   10   │     0     │    0     │  ← All correct!
+ACTUAL        ├────────┼───────────┼──────────┤
+   Versicolor │    0   │     9     │    1     │  ← 1 wrong
+              ├────────┼───────────┼──────────┤
+   Virginica  │    0   │     0     │   10     │  ← All correct!
+              └────────┴───────────┴──────────┘
+
+Diagonal = Correct predictions (29/30 = 96.7% accuracy)
+Off-diagonal = Errors (1 versicolor predicted as virginica)
+```
+
+### Understanding Precision, Recall, F1
+
+```
+Example: Binary classification (Spam Detection)
+
+                 Predicted
+              Spam    Not Spam
+           ┌───────┬──────────┐
+  Spam     │  80   │    20    │    TP=80, FN=20
+Actual     ├───────┼──────────┤
+  Not Spam │  10   │   890    │    FP=10, TN=890
+           └───────┴──────────┘
+
+PRECISION = TP / (TP + FP) = 80 / (80 + 10) = 88.9%
+"Of emails I marked as spam, how many were actually spam?"
+
+RECALL = TP / (TP + FN) = 80 / (80 + 20) = 80.0%
+"Of all actual spam, how many did I catch?"
+
+F1-SCORE = 2 * (P * R) / (P + R) = 2 * (0.889 * 0.80) / (1.689) = 84.2%
+"Balanced measure of precision and recall"
+```
+
+### When to Use Which Metric?
+
+| Scenario | Prioritize | Why |
+|----------|------------|-----|
+| Spam filter | Precision | Don't want to miss important emails |
+| Cancer detection | Recall | Don't want to miss any cancer cases |
+| Balanced importance | F1-Score | Good overall measure |
+| Balanced classes | Accuracy | Simple and interpretable |
+
+## 2.8 Cross-Validation
+
+### What is Cross-Validation?
+
+Instead of one train/test split, we do multiple:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   5-FOLD CROSS-VALIDATION                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Fold 1: [TEST] [Train] [Train] [Train] [Train] → Score: 95% │
+│ Fold 2: [Train] [TEST] [Train] [Train] [Train] → Score: 97% │
+│ Fold 3: [Train] [Train] [TEST] [Train] [Train] → Score: 93% │
+│ Fold 4: [Train] [Train] [Train] [TEST] [Train] → Score: 96% │
+│ Fold 5: [Train] [Train] [Train] [Train] [TEST] → Score: 94% │
+│                                                             │
+│ Final Score: 95% (+/- 1.5%)                                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Use Cross-Validation?
+
+- More reliable estimate of model performance
+- Uses all data for both training and testing
+- Shows variance in performance (stability)
+
+```python
+from sklearn.model_selection import cross_val_score
+
+scores = cross_val_score(model, X_train, y_train, cv=5)
+print(f"CV Score: {scores.mean():.4f} (+/- {scores.std()*2:.4f})")
+```
+
+## 2.9 Saving Models with Joblib
+
+### Why Save Models?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  Training: Expensive (compute, time, data)                  │
+│  ─────────────────────────────────────                      │
+│  - Load data                                                │
+│  - Preprocess                                               │
+│  - Train model                                              │
+│  - Tune hyperparameters                                     │
+│  - Evaluate                                                 │
+│                                                             │
+│  Inference: Cheap (load and predict)                        │
+│  ─────────────────────────────────────                      │
+│  - Load saved model                                         │
+│  - Predict                                                  │
+│                                                             │
+│  We train ONCE, deploy, and reuse!                          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Joblib vs Pickle
+
+| Feature | Joblib | Pickle |
+|---------|--------|--------|
+| Speed for large arrays | Faster | Slower |
+| NumPy optimization | Yes | No |
+| sklearn preference | Yes | Fallback |
+| Compression | Built-in | Manual |
+
+### Code for Saving/Loading
+
+```python
+import joblib
+
+# SAVING
+model_artifact = {
+    'model': trained_model,
+    'feature_names': ['sepal_length', ...],
+    'target_names': ['setosa', 'versicolor', 'virginica'],
+    'version': '1.0.0'
+}
+joblib.dump(model_artifact, 'models/model.joblib')
+
+# LOADING
+artifact = joblib.load('models/model.joblib')
+model = artifact['model']
+prediction = model.predict(new_data)
+```
+
+## 2.10 Running the Training Script
+
+```bash
+cd ml-classification-project
+
+# Train the model
+python src/ml/train.py
+
+# Test the prediction module
+python src/ml/predict.py
+```
+
+### Expected Output
+
+```
+============================================================
+   ML MODEL TRAINING PIPELINE
+============================================================
+
+STEP 1: Loading Data
+✓ Data loaded successfully!
+
+STEP 2: Splitting Data (Train/Test)
+✓ Data split complete!
+
+STEP 3: Creating Models
+✓ Models created: Logistic Regression, Decision Tree, Random Forest
+
+STEP 4: Training and Evaluating Models
+[Results for each model...]
+
+STEP 5: Model Comparison
+Model                     Accuracy     F1-Score     CV Score
+─────────────────────────────────────────────────────────────
+Logistic Regression       0.9667       0.9665       0.9583 +/- 0.0485
+Decision Tree             0.9667       0.9665       0.9500 +/- 0.0527
+Random Forest             0.9667       0.9665       0.9583 +/- 0.0620
+
+✓ Best Model: Logistic Regression
+
+STEP 6: Saving Model
+✓ Model saved: models/iris_classifier.joblib
+```
+
+## 2.11 The Predict Module
+
+The `predict.py` file provides a clean interface for the API:
+
+```python
+from src.ml.predict import IrisPredictor
+
+# Initialize (loads model once)
+predictor = IrisPredictor()
+
+# Make prediction
+result = predictor.predict(
+    sepal_length=5.1,
+    sepal_width=3.5,
+    petal_length=1.4,
+    petal_width=0.2
+)
+
+# Result:
+# {
+#     'predicted_class': 'setosa',
+#     'predicted_label': 0,
+#     'confidence': 0.97,
+#     'probabilities': {
+#         'setosa': 0.97,
+#         'versicolor': 0.02,
+#         'virginica': 0.01
+#     }
+# }
+```
+
+---
+
+## Key Concepts Learned in Step 2
+
+### 1. The Bias-Variance Tradeoff
+
+```
+                    Model Complexity →
+                 Low ──────────────────▶ High
+
+       High  │  ┌────────────────────────┐
+             │  │                        │
+      Error  │  │    ╲    Total Error ╱  │
+             │  │     ╲             ╱    │
+             │  │      ╲    ┌─────╱      │
+             │  │       ╲   │   ╱        │
+             │  │  Bias  ╲  │  ╱ Variance│
+             │  │         ╲ │ ╱          │
+       Low   │  │          ╲│╱           │
+             │  └────────────────────────┘
+                        Sweet spot
+                     (optimal complexity)
+```
+
+- **High Bias (Underfitting)**: Model too simple
+- **High Variance (Overfitting)**: Model too complex
+- **Goal**: Find the balance (low total error)
+
+### 2. Overfitting vs Underfitting
+
+| Sign | Underfitting | Overfitting |
+|------|--------------|-------------|
+| Training accuracy | Low | High |
+| Test accuracy | Low | Low |
+| Solution | More complex model | Regularization, simpler model |
+
+### 3. Model Selection Strategy
+
+1. Start with simple models (Logistic Regression)
+2. If underfitting → try more complex models
+3. If overfitting → add regularization
+4. Use cross-validation to compare fairly
+5. Choose based on business requirements
+
+---
+
+## Next Step: Step 3 - FastAPI Backend
+
+In Step 3, we will:
+1. Create a REST API with FastAPI
+2. Define request/response schemas with Pydantic
+3. Create `/predict` endpoint
+4. Add health check endpoint
+5. Generate automatic API documentation
 
 ---
 
@@ -415,5 +911,5 @@ In Step 2, we will:
 
 ---
 
-*Last Updated: Step 1 - COMPLETED*
-*Next: Step 2 - ML Model Development*
+*Last Updated: Step 2 - COMPLETED*
+*Next: Step 3 - FastAPI Backend*
