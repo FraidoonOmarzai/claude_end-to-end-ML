@@ -1,0 +1,149 @@
+# =============================================================================
+# Pre-commit Configuration
+# =============================================================================
+#
+# STUDY NOTE: Pre-commit Hooks
+# ----------------------------
+# Pre-commit hooks run automatically before each commit.
+# They catch issues BEFORE code enters the repository.
+#
+# Benefits:
+# - Consistent code quality
+# - Catch errors early
+# - Automated formatting
+# - Enforce standards
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Manual run:
+#   pre-commit run --all-files
+#
+# Skip hooks (emergency only):
+#   git commit --no-verify
+# =============================================================================
+
+repos:
+  # ---------------------------------------------------------------------------
+  # General hooks
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevent giant files from being committed
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Check for files that would conflict on case-insensitive filesystems
+      - id: check-case-conflict
+
+      # Check for merge conflict strings
+      - id: check-merge-conflict
+
+      # Check yaml files for syntax
+      - id: check-yaml
+        args: ['--unsafe']  # Allow custom tags
+
+      # Check json files for syntax
+      - id: check-json
+
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Check for debugger imports
+      - id: debug-statements
+
+      # Don't commit directly to main/master
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'master']
+
+  # ---------------------------------------------------------------------------
+  # Python code formatting with Black
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3
+
+  # ---------------------------------------------------------------------------
+  # Import sorting with isort
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # ---------------------------------------------------------------------------
+  # Linting with flake8
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: ['--max-line-length=88', '--extend-ignore=E203,E501']
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-comprehensions
+
+  # ---------------------------------------------------------------------------
+  # Type checking with mypy
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - pydantic
+        args: ['--ignore-missing-imports']
+
+  # ---------------------------------------------------------------------------
+  # Security checks
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.7
+    hooks:
+      - id: bandit
+        args: ['-r', 'src/', '-ll']  # -ll means only high severity
+        exclude: tests/
+
+  # ---------------------------------------------------------------------------
+  # Check for secrets
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: .env.example
+
+  # ---------------------------------------------------------------------------
+  # Dockerfile linting
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        entry: hadolint
+
+# =============================================================================
+# CI Configuration
+# =============================================================================
+# These settings apply when running in CI environments
+
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

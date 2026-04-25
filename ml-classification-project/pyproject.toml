@@ -1,0 +1,270 @@
+# =============================================================================
+# Python Project Configuration
+# =============================================================================
+# This file configures various Python tools used in the project.
+#
+# STUDY NOTE: pyproject.toml
+# --------------------------
+# pyproject.toml is the modern standard for Python project configuration.
+# It consolidates settings for multiple tools in one file:
+# - Project metadata
+# - Build system
+# - Code formatters (black, isort)
+# - Linters (flake8, pylint)
+# - Type checkers (mypy)
+# - Test runners (pytest)
+# =============================================================================
+
+[project]
+name = "iris-classifier"
+version = "1.0.0"
+description = "End-to-end ML classification project with FastAPI and Streamlit"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "ML Developer", email = "developer@example.com"}
+]
+keywords = ["machine-learning", "classification", "fastapi", "streamlit"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "scikit-learn>=1.3.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+    "streamlit>=1.28.0",
+    "joblib>=1.3.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+]
+viz = [
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/iris-classifier"
+Documentation = "https://github.com/yourusername/iris-classifier#readme"
+Repository = "https://github.com/yourusername/iris-classifier"
+
+# =============================================================================
+# Black - Code Formatter
+# =============================================================================
+# STUDY NOTE: Black
+# -----------------
+# Black is an opinionated code formatter that enforces a consistent style.
+# "Any color you like, as long as it's black."
+#
+# Benefits:
+# - No debates about style
+# - Consistent codebase
+# - Automatic formatting
+#
+# Usage: black src/ tests/
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | __pycache__
+)/
+'''
+
+# =============================================================================
+# isort - Import Sorter
+# =============================================================================
+# STUDY NOTE: isort
+# -----------------
+# isort automatically sorts and organizes imports.
+#
+# Import order:
+# 1. Standard library (os, sys, etc.)
+# 2. Third-party (numpy, pandas, etc.)
+# 3. Local imports (src.*, etc.)
+#
+# Usage: isort src/ tests/
+
+[tool.isort]
+profile = "black"  # Compatible with black
+line_length = 88
+known_first_party = ["src"]
+known_third_party = ["fastapi", "pydantic", "sklearn", "pandas", "numpy"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip_glob = ["**/migrations/*", "**/.venv/*"]
+
+# =============================================================================
+# MyPy - Static Type Checker
+# =============================================================================
+# STUDY NOTE: MyPy
+# ----------------
+# MyPy checks type hints for correctness without running the code.
+#
+# Benefits:
+# - Catch type errors before runtime
+# - Better IDE support
+# - Self-documenting code
+#
+# Usage: mypy src/
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false  # Start permissive, tighten later
+ignore_missing_imports = true
+exclude = [
+    "venv",
+    ".venv",
+    "__pycache__",
+]
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pandas.*"
+ignore_missing_imports = true
+
+# =============================================================================
+# Pytest - Test Framework
+# =============================================================================
+# STUDY NOTE: Pytest
+# ------------------
+# Pytest is the most popular Python testing framework.
+#
+# Features:
+# - Simple test discovery
+# - Powerful fixtures
+# - Detailed failure reports
+# - Plugin ecosystem
+#
+# Usage: pytest tests/ -v
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",                    # Verbose output
+    "--tb=short",            # Short traceback
+    "-ra",                   # Show summary of all except passed
+    "--strict-markers",      # Error on unknown markers
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# =============================================================================
+# Coverage - Code Coverage
+# =============================================================================
+# STUDY NOTE: Coverage
+# --------------------
+# Coverage measures how much of your code is executed by tests.
+#
+# Metrics:
+# - Line coverage: % of lines executed
+# - Branch coverage: % of branches (if/else) taken
+#
+# Usage: pytest --cov=src tests/
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+fail_under = 70  # Minimum coverage percentage
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# =============================================================================
+# Ruff - Fast Linter (Alternative to flake8)
+# =============================================================================
+# STUDY NOTE: Ruff
+# ----------------
+# Ruff is a fast Python linter written in Rust.
+# It can replace flake8, isort, and many other tools.
+#
+# Usage: ruff check src/
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+"tests/*" = ["S101"]       # Allow assert in tests
