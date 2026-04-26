@@ -1,0 +1,187 @@
+# =============================================================================
+# Dockerfile for FastAPI Backend
+# =============================================================================
+#
+# STUDY NOTE: What is Docker?
+# ---------------------------
+# Docker packages your application with all its dependencies into a "container".
+# Containers are:
+# - Isolated: Run independently of the host system
+# - Portable: Run the same way on any machine
+# - Lightweight: Share the host OS kernel (unlike VMs)
+#
+# Key concepts:
+# - Image: A template (like a class)
+# - Container: A running instance (like an object)
+# - Dockerfile: Instructions to build an image
+# - Layer: Each instruction creates a cached layer
+#
+# Build: docker build -f docker/Dockerfile.api -t iris-api .
+# Run:   docker run -p 8000:8000 iris-api
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Base image
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Base Images
+# -----------------------
+# We start FROM an existing image. python:3.11-slim is:
+# - Official Python image
+# - slim variant (smaller, no extra tools)
+# - Good balance of size and functionality
+#
+# Other options:
+# - python:3.11        Full image (~900MB)
+# - python:3.11-slim   Smaller (~150MB)
+# - python:3.11-alpine Even smaller (~50MB) but compatibility issues
+
+FROM python:3.11-slim AS base
+
+# -----------------------------------------------------------------------------
+# Metadata
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Labels
+# ------------------
+# Labels add metadata to the image (who made it, version, etc.)
+# Useful for image management and documentation.
+
+LABEL maintainer="ML Developer <developer@example.com>"
+LABEL version="1.0.0"
+LABEL description="FastAPI backend for Iris Classification"
+
+# -----------------------------------------------------------------------------
+# Environment variables
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Environment Variables in Docker
+# -------------------------------------------
+# ENV sets environment variables that persist in the container.
+#
+# PYTHONDONTWRITEBYTECODE=1: Don't create .pyc files (smaller image)
+# PYTHONUNBUFFERED=1: Print output immediately (better for logs)
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    # Poetry/pip settings
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # App settings
+    APP_ENV=production \
+    API_HOST=0.0.0.0 \
+    API_PORT=8000
+
+# -----------------------------------------------------------------------------
+# Working directory
+# -----------------------------------------------------------------------------
+# STUDY NOTE: WORKDIR
+# -------------------
+# Sets the working directory for subsequent commands.
+# If it doesn't exist, Docker creates it.
+# All relative paths will be relative to this directory.
+
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Install system dependencies
+# -----------------------------------------------------------------------------
+# STUDY NOTE: RUN and Layer Caching
+# ---------------------------------
+# Each RUN creates a new layer. Docker caches layers.
+# If a layer hasn't changed, Docker reuses the cached version.
+#
+# Best practices:
+# - Combine related commands with && to reduce layers
+# - Clean up in the same RUN to keep layer small
+# - Put least-changing commands first (better cache hits)
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Required for some Python packages
+    gcc \
+    # Required for health checks
+    curl \
+    # Clean up apt cache to reduce image size
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# -----------------------------------------------------------------------------
+# Install Python dependencies
+# -----------------------------------------------------------------------------
+# STUDY NOTE: COPY and Layer Caching Strategy
+# -------------------------------------------
+# We copy requirements.txt FIRST, then install dependencies.
+# This way, if only source code changes (not dependencies),
+# Docker reuses the cached dependency layer.
+#
+# Order matters for caching:
+# 1. Copy requirements.txt (changes rarely)
+# 2. Install dependencies (cached if requirements unchanged)
+# 3. Copy source code (changes often)
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# -----------------------------------------------------------------------------
+# Copy application code
+# -----------------------------------------------------------------------------
+# STUDY NOTE: COPY
+# ----------------
+# COPY <src> <dest> copies files from build context to image.
+# .dockerignore file excludes files (like .gitignore for Docker)
+
+# Copy source code
+COPY src/ ./src/
+COPY models/ ./models/
+
+# -----------------------------------------------------------------------------
+# Create non-root user
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Security - Non-root User
+# ------------------------------------
+# Running as root inside containers is a security risk.
+# If an attacker escapes the container, they'd have root access.
+# Best practice: Create and use a non-root user.
+
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+# -----------------------------------------------------------------------------
+# Expose port
+# -----------------------------------------------------------------------------
+# STUDY NOTE: EXPOSE
+# ------------------
+# Documents which port the container listens on.
+# Doesn't actually publish the port (that's done with -p flag).
+# It's metadata for documentation and tooling.
+
+EXPOSE 8000
+
+# -----------------------------------------------------------------------------
+# Health check
+# -----------------------------------------------------------------------------
+# STUDY NOTE: HEALTHCHECK
+# -----------------------
+# Docker periodically runs this command to check if container is healthy.
+# Used by orchestrators (Docker Swarm, Kubernetes) for monitoring.
+#
+# Options:
+# --interval: Time between checks (default 30s)
+# --timeout: Max time for check to complete (default 30s)
+# --retries: Consecutive failures before unhealthy (default 3)
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# -----------------------------------------------------------------------------
+# Startup command
+# -----------------------------------------------------------------------------
+# STUDY NOTE: CMD vs ENTRYPOINT
+# -----------------------------
+# CMD: Default command, can be overridden at runtime
+# ENTRYPOINT: Always runs, CMD becomes arguments
+#
+# We use CMD here so users can override if needed:
+# docker run iris-api python -m pytest  # Override to run tests
+
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

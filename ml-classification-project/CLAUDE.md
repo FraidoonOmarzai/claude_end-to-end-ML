@@ -16,8 +16,8 @@ The goal is to learn ML deployment: from model training to production on AWS/K8s
 | 2 | ML Model Training | ✅ Done |
 | 3 | FastAPI Backend | ✅ Done |
 | 4 | Streamlit Frontend | ✅ Done |
-| 5 | Docker | ⏳ Next |
-| 6 | Kubernetes | ⬜ Pending |
+| 5 | Docker | ✅ Done |
+| 6 | Kubernetes | ⏳ Next |
 | 7 | AWS (ECR, EKS) | ⬜ Pending |
 | 8 | CI/CD (GitHub Actions) | ⬜ Pending |
 | 9 | Monitoring (Prometheus, Grafana) | ⬜ Pending |

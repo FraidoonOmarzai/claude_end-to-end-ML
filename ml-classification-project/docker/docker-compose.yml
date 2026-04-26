@@ -1,0 +1,172 @@
+# =============================================================================
+# Docker Compose Configuration
+# =============================================================================
+#
+# STUDY NOTE: What is Docker Compose?
+# -----------------------------------
+# Docker Compose is a tool for defining and running multi-container apps.
+# Instead of running multiple `docker run` commands, you define everything
+# in a YAML file and run `docker-compose up`.
+#
+# Benefits:
+# - Single command to start all services
+# - Automatic networking between containers
+# - Environment variable management
+# - Volume management
+# - Easy to version control
+#
+# Commands:
+#   docker-compose up        Start all services
+#   docker-compose up -d     Start in background (detached)
+#   docker-compose down      Stop all services
+#   docker-compose logs      View logs
+#   docker-compose ps        List running containers
+#   docker-compose build     Rebuild images
+#
+# Run from project root:
+#   docker-compose -f docker/docker-compose.yml up
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# Services
+# =============================================================================
+# STUDY NOTE: Services
+# --------------------
+# Each service becomes a container. Services can communicate
+# using their service name as hostname (e.g., http://api:8000).
+
+services:
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend
+  # ---------------------------------------------------------------------------
+  api:
+    # Build configuration
+    build:
+      context: ..              # Build context is parent directory
+      dockerfile: docker/Dockerfile.api
+
+    # Container name (optional, but helpful)
+    container_name: iris-api
+
+    # Image name for the built image
+    image: iris-api:latest
+
+    # Port mapping: host:container
+    # STUDY NOTE: Port Mapping
+    # ------------------------
+    # "8000:8000" means:
+    # - Host port 8000 → Container port 8000
+    # - Access via localhost:8000 on your machine
+    ports:
+      - "8000:8000"
+
+    # Environment variables
+    # STUDY NOTE: Environment Variables in Compose
+    # --------------------------------------------
+    # You can set env vars directly or use env_file.
+    # Variables here override those in Dockerfile.
+    environment:
+      - APP_ENV=production
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=INFO
+
+    # Mount volumes
+    # STUDY NOTE: Volumes
+    # -------------------
+    # Volumes persist data and share files between host and container.
+    # - Named volumes: Managed by Docker
+    # - Bind mounts: Direct host path mapping
+    #
+    # In development, we mount source code for hot reload.
+    # In production, code is baked into the image.
+    volumes:
+      # Mount models directory (so we can update models without rebuild)
+      - ../models:/app/models:ro  # :ro = read-only
+
+    # Health check (overrides Dockerfile HEALTHCHECK)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s  # Wait before first check
+
+    # Restart policy
+    # STUDY NOTE: Restart Policies
+    # ----------------------------
+    # - no: Never restart
+    # - always: Always restart
+    # - on-failure: Restart only on error
+    # - unless-stopped: Restart unless manually stopped
+    restart: unless-stopped
+
+    # Network
+    networks:
+      - iris-network
+
+  # ---------------------------------------------------------------------------
+  # Streamlit Frontend
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+
+    container_name: iris-frontend
+    image: iris-frontend:latest
+
+    ports:
+      - "8501:8501"
+
+    environment:
+      - API_URL=http://api:8000  # Use service name as hostname!
+      - STREAMLIT_SERVER_PORT=8501
+
+    # Dependencies
+    # STUDY NOTE: depends_on
+    # ----------------------
+    # Ensures API starts before frontend.
+    depends_on:
+      - api  # Simplified: just wait for container to start
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    restart: unless-stopped
+
+    networks:
+      - iris-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+# STUDY NOTE: Docker Networks
+# ---------------------------
+# Networks allow containers to communicate.
+# Containers on the same network can reach each other by service name.
+#
+# Example: Frontend can call http://api:8000/predict
+# (api is the service name, Docker resolves it to the container IP)
+
+networks:
+  iris-network:
+    driver: bridge  # Default network driver
+
+# =============================================================================
+# Volumes (optional, for data persistence)
+# =============================================================================
+# STUDY NOTE: Named Volumes
+# -------------------------
+# Named volumes are managed by Docker and persist data.
+# Useful for: databases, logs, uploaded files
+#
+# volumes:
+#   model-data:
+#     driver: local

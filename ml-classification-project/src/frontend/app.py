@@ -16,6 +16,7 @@ st.set_page_config(
 # =============================================================================
 # Now we can import other modules
 # =============================================================================
+import os
 import requests
 import json
 from typing import Dict, Optional
@@ -49,7 +50,11 @@ Or use:
 """
 
 # API Configuration
-API_URL = "http://localhost:8000"
+# STUDY NOTE: Environment Variables for Docker
+# --------------------------------------------
+# In Docker, services communicate via service names (e.g., http://api:8000)
+# Locally, we use localhost. Environment variable handles both cases.
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 # Iris species information for display
 SPECIES_INFO = {

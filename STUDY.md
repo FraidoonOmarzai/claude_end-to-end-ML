@@ -48,11 +48,11 @@ This guide walks you through building a complete ML classification project from 
 - [x] Connect to FastAPI backend
 - [x] Display results visually
 
-### Step 5: Docker Containerization
-- [ ] Write Dockerfile for FastAPI
-- [ ] Write Dockerfile for Streamlit
-- [ ] Create docker-compose.yml for local development
-- [ ] Test containers locally
+### Step 5: Docker Containerization ✅ COMPLETED
+- [x] Write Dockerfile for FastAPI
+- [x] Write Dockerfile for Streamlit
+- [x] Create docker-compose.yml for local development
+- [x] Test containers locally
 
 ### Step 6: Kubernetes (K8s) Deployment
 - [ ] Understand K8s concepts (Pods, Deployments, Services)
@@ -2057,13 +2057,348 @@ JSON input for multiple samples.
 
 ---
 
-## Next Step: Step 5 - Docker Containerization
+---
 
-In Step 5, we will:
-1. Write Dockerfile for FastAPI
-2. Write Dockerfile for Streamlit
-3. Create docker-compose.yml
-4. Test containers locally
+# STEP 5: Docker Containerization (DETAILED)
+
+## 5.1 Files Created
+
+| File | Purpose |
+|------|---------|
+| `docker/Dockerfile.api` | Dockerfile for FastAPI backend |
+| `docker/Dockerfile.frontend` | Dockerfile for Streamlit frontend |
+| `docker/docker-compose.yml` | Multi-container orchestration |
+| `.dockerignore` | Exclude files from Docker build |
+
+## 5.2 What is Docker?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DOCKER CONCEPTS                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  WITHOUT DOCKER:                                            │
+│  ───────────────                                            │
+│  "Works on my machine" 🤷                                   │
+│  - Different Python versions                                │
+│  - Missing dependencies                                     │
+│  - OS differences                                           │
+│                                                             │
+│  WITH DOCKER:                                               │
+│  ────────────                                               │
+│  "Works everywhere" ✓                                       │
+│  - Same environment always                                  │
+│  - All dependencies included                                │
+│  - Runs on any OS with Docker                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Docker vs Virtual Machines
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  VIRTUAL MACHINE                    DOCKER CONTAINER        │
+│  ───────────────                    ────────────────        │
+│  ┌─────────────────┐                ┌─────────────────┐    │
+│  │      App        │                │      App        │    │
+│  ├─────────────────┤                ├─────────────────┤    │
+│  │   Guest OS      │                │   Container     │    │
+│  │   (Full OS!)    │                │   (Just libs)   │    │
+│  ├─────────────────┤                └────────┬────────┘    │
+│  │   Hypervisor    │                         │             │
+│  ├─────────────────┤                ┌────────┴────────┐    │
+│  │    Host OS      │                │   Docker Engine │    │
+│  ├─────────────────┤                ├─────────────────┤    │
+│  │   Hardware      │                │    Host OS      │    │
+│  └─────────────────┘                ├─────────────────┤    │
+│                                     │   Hardware      │    │
+│  Heavy (~GB)                        └─────────────────┘    │
+│  Slow to start                      Light (~MB)            │
+│                                     Fast to start           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 5.3 Key Docker Concepts
+
+| Concept | Description | Analogy |
+|---------|-------------|---------|
+| **Image** | Template with app + dependencies | Class |
+| **Container** | Running instance of an image | Object |
+| **Dockerfile** | Instructions to build an image | Recipe |
+| **Layer** | Cached step in build process | Ingredient |
+| **Registry** | Storage for images (Docker Hub, ECR) | App Store |
+
+## 5.4 Dockerfile Explained
+
+```dockerfile
+# 1. BASE IMAGE - Starting point
+FROM python:3.11-slim
+
+# 2. METADATA - Image information
+LABEL maintainer="developer@example.com"
+
+# 3. ENVIRONMENT - Set variables
+ENV PYTHONUNBUFFERED=1
+
+# 4. WORKDIR - Set working directory
+WORKDIR /app
+
+# 5. COPY & RUN - Add files, run commands
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY src/ ./src/
+
+# 6. USER - Security (non-root)
+RUN useradd appuser
+USER appuser
+
+# 7. EXPOSE - Document port
+EXPOSE 8000
+
+# 8. HEALTHCHECK - Container health
+HEALTHCHECK CMD curl -f http://localhost:8000/health
+
+# 9. CMD - Default startup command
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0"]
+```
+
+### Layer Caching Strategy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  DOCKERFILE LAYER CACHING                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  GOOD ORDER (cache-friendly):                               │
+│  ─────────────────────────────                              │
+│  1. FROM python:3.11-slim        ← Changes: Never          │
+│  2. COPY requirements.txt        ← Changes: Rarely         │
+│  3. RUN pip install ...          ← Cached if #2 unchanged  │
+│  4. COPY src/ ./src/             ← Changes: Often          │
+│                                                             │
+│  If only src/ changes, Docker reuses layers 1-3!           │
+│                                                             │
+│  BAD ORDER (no caching benefit):                            │
+│  ────────────────────────────────                           │
+│  1. COPY . .                     ← Any change invalidates  │
+│  2. RUN pip install ...          ← Always rebuilds!        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 5.5 Docker Compose Explained
+
+```yaml
+version: '3.8'
+
+services:
+  # Service 1: API Backend
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"          # host:container
+    environment:
+      - APP_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    networks:
+      - iris-network
+
+  # Service 2: Frontend
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000   # Service name as hostname!
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - iris-network
+
+networks:
+  iris-network:
+    driver: bridge
+```
+
+### Service Communication
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                DOCKER NETWORK COMMUNICATION                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              iris-network (bridge)                   │   │
+│  │                                                      │   │
+│  │   ┌─────────────┐          ┌─────────────┐         │   │
+│  │   │   api       │          │  frontend   │         │   │
+│  │   │             │◄─────────│             │         │   │
+│  │   │ :8000       │  HTTP    │ :8501       │         │   │
+│  │   └─────────────┘          └─────────────┘         │   │
+│  │                                                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Frontend calls: http://api:8000/predict                   │
+│  (Docker resolves 'api' to container IP automatically)      │
+│                                                             │
+│  From your browser:                                         │
+│  - http://localhost:8000 → API                             │
+│  - http://localhost:8501 → Frontend                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 5.6 Docker Commands Reference
+
+### Building Images
+
+```bash
+# Build single image
+docker build -f docker/Dockerfile.api -t iris-api .
+
+# Build with docker-compose
+docker-compose -f docker/docker-compose.yml build
+```
+
+### Running Containers
+
+```bash
+# Run single container
+docker run -p 8000:8000 iris-api
+
+# Run with docker-compose (recommended)
+docker-compose -f docker/docker-compose.yml up
+
+# Run in background
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+### Managing Containers
+
+```bash
+# List running containers
+docker ps
+
+# List all containers
+docker ps -a
+
+# View logs
+docker logs iris-api
+docker-compose logs -f  # Follow logs
+
+# Stop containers
+docker-compose down
+
+# Stop and remove volumes
+docker-compose down -v
+```
+
+### Debugging
+
+```bash
+# Shell into running container
+docker exec -it iris-api /bin/bash
+
+# View container details
+docker inspect iris-api
+
+# Check resource usage
+docker stats
+```
+
+## 5.7 Running the Dockerized Application
+
+### Step 1: Build Images
+
+```bash
+cd ml-classification-project
+
+# Using docker-compose
+docker-compose -f docker/docker-compose.yml build
+```
+
+### Step 2: Start Services
+
+```bash
+# Start all services
+docker-compose -f docker/docker-compose.yml up
+
+# Or in background
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+### Step 3: Access Application
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:8501 |
+| API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+
+### Step 4: Stop Services
+
+```bash
+docker-compose -f docker/docker-compose.yml down
+```
+
+## 5.8 Best Practices Implemented
+
+| Practice | Why | How |
+|----------|-----|-----|
+| Slim base image | Smaller, faster | `python:3.11-slim` |
+| Non-root user | Security | `USER appuser` |
+| Layer caching | Faster builds | Copy requirements first |
+| Health checks | Reliability | `HEALTHCHECK` instruction |
+| .dockerignore | Smaller context | Exclude unnecessary files |
+| Multi-stage builds | Smaller images | (For production) |
+
+## 5.9 Troubleshooting
+
+### Container won't start
+```bash
+# Check logs
+docker-compose logs api
+
+# Check if port is in use
+netstat -ano | findstr :8000
+```
+
+### Cannot connect to API from frontend
+```bash
+# Check network
+docker network ls
+docker network inspect docker_iris-network
+
+# Ensure API is healthy
+docker-compose ps
+```
+
+### Build is slow
+```bash
+# Check .dockerignore is working
+docker build --no-cache -f docker/Dockerfile.api .
+
+# Use BuildKit for faster builds
+DOCKER_BUILDKIT=1 docker build ...
+```
+
+---
+
+## Next Step: Step 6 - Kubernetes Deployment
+
+In Step 6, we will:
+1. Understand K8s concepts (Pods, Deployments, Services)
+2. Write K8s manifests
+3. Test locally with minikube/kind
 
 ---
 
@@ -2079,5 +2414,5 @@ In Step 5, we will:
 
 ---
 
-*Last Updated: Step 4 - COMPLETED*
-*Next: Step 5 - Docker Containerization*
+*Last Updated: Step 5 - COMPLETED*
+*Next: Step 6 - Kubernetes Deployment*

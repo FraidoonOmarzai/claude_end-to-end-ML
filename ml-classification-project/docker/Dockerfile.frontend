@@ -1,0 +1,118 @@
+# =============================================================================
+# Dockerfile for Streamlit Frontend
+# =============================================================================
+#
+# STUDY NOTE: Multi-Service Architecture
+# --------------------------------------
+# We have separate Dockerfiles for API and Frontend because:
+# - Independent scaling (can run 5 APIs, 1 frontend)
+# - Independent updates (update API without touching frontend)
+# - Separation of concerns
+# - Different resource requirements
+#
+# Build: docker build -f docker/Dockerfile.frontend -t iris-frontend .
+# Run:   docker run -p 8501:8501 iris-frontend
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Base image
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim AS base
+
+# Metadata
+LABEL maintainer="ML Developer <developer@example.com>"
+LABEL version="1.0.0"
+LABEL description="Streamlit frontend for Iris Classification"
+
+# -----------------------------------------------------------------------------
+# Environment variables
+# -----------------------------------------------------------------------------
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # Streamlit specific settings
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    # Disable Streamlit's usage statistics
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    # API URL (can be overridden at runtime)
+    API_URL=http://api:8000
+
+# Working directory
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Install system dependencies
+# -----------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# -----------------------------------------------------------------------------
+# Install Python dependencies
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Separate Requirements
+# ---------------------------------
+# In production, you might have separate requirements files:
+# - requirements.txt (all dependencies)
+# - requirements-api.txt (API only)
+# - requirements-frontend.txt (frontend only)
+#
+# This reduces image size by only installing what's needed.
+
+COPY requirements.txt .
+
+# Install only what frontend needs
+RUN pip install --no-cache-dir \
+    streamlit \
+    requests \
+    python-dotenv
+
+# -----------------------------------------------------------------------------
+# Copy application code
+# -----------------------------------------------------------------------------
+# Only copy what the frontend needs
+COPY src/frontend/ ./src/frontend/
+
+# -----------------------------------------------------------------------------
+# Create non-root user
+# -----------------------------------------------------------------------------
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+# -----------------------------------------------------------------------------
+# Expose port
+# -----------------------------------------------------------------------------
+EXPOSE 8501
+
+# -----------------------------------------------------------------------------
+# Health check
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Streamlit Health Check
+# ----------------------------------
+# Streamlit doesn't have a built-in health endpoint.
+# We check if the port is responding.
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# -----------------------------------------------------------------------------
+# Startup command
+# -----------------------------------------------------------------------------
+# STUDY NOTE: Streamlit CLI Options
+# ---------------------------------
+# --server.port: Port to run on
+# --server.address: Address to bind to (0.0.0.0 for all interfaces)
+# --server.headless: Run without opening browser
+# --browser.gatherUsageStats: Disable telemetry
+
+CMD ["streamlit", "run", "src/frontend/app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true", \
+     "--browser.gatherUsageStats=false"]
