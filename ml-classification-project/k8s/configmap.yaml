@@ -1,0 +1,46 @@
+# =============================================================================
+# Kubernetes ConfigMap
+# =============================================================================
+#
+# STUDY NOTE: What is a ConfigMap?
+# --------------------------------
+# ConfigMaps store non-sensitive configuration data as key-value pairs.
+# They decouple configuration from container images, making apps portable.
+#
+# Use ConfigMaps for:
+# - Environment variables
+# - Configuration files
+# - Command-line arguments
+#
+# DON'T use ConfigMaps for:
+# - Passwords, API keys, tokens (use Secrets instead)
+# - Large files (1MB limit)
+#
+# Apply: kubectl apply -f k8s/configmap.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iris-config
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+data:
+  # API Configuration
+  APP_ENV: "production"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  LOG_LEVEL: "INFO"
+
+  # Frontend Configuration
+  STREAMLIT_SERVER_PORT: "8501"
+  STREAMLIT_SERVER_ADDRESS: "0.0.0.0"
+
+  # API URL for frontend (uses K8s service name)
+  # STUDY NOTE: Service Discovery
+  # -----------------------------
+  # In Kubernetes, services can be reached by their name.
+  # Format: <service-name>.<namespace>.svc.cluster.local
+  # Or simply: <service-name> (within same namespace)
+  API_URL: "http://iris-api-service:8000"

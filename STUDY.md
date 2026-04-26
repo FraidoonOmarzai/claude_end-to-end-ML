@@ -54,10 +54,10 @@ This guide walks you through building a complete ML classification project from 
 - [x] Create docker-compose.yml for local development
 - [x] Test containers locally
 
-### Step 6: Kubernetes (K8s) Deployment
-- [ ] Understand K8s concepts (Pods, Deployments, Services)
-- [ ] Write K8s manifests
-- [ ] Test locally with minikube/kind
+### Step 6: Kubernetes (K8s) Deployment ✅ COMPLETED
+- [x] Understand K8s concepts (Pods, Deployments, Services)
+- [x] Write K8s manifests
+- [x] Test locally with minikube/kind
 
 ### Step 7: AWS Infrastructure
 - [ ] Set up ECR (Elastic Container Registry)
@@ -2393,12 +2393,353 @@ DOCKER_BUILDKIT=1 docker build ...
 
 ---
 
-## Next Step: Step 6 - Kubernetes Deployment
+---
 
-In Step 6, we will:
-1. Understand K8s concepts (Pods, Deployments, Services)
-2. Write K8s manifests
-3. Test locally with minikube/kind
+# STEP 6: Kubernetes Deployment (DETAILED)
+
+## 6.1 Files Created
+
+| File | Purpose |
+|------|---------|
+| `k8s/namespace.yaml` | Isolated namespace for our app |
+| `k8s/configmap.yaml` | Configuration data |
+| `k8s/api-deployment.yaml` | API pods management |
+| `k8s/api-service.yaml` | API network endpoint |
+| `k8s/frontend-deployment.yaml` | Frontend pods management |
+| `k8s/frontend-service.yaml` | Frontend network endpoint |
+| `k8s/ingress.yaml` | External access routing |
+| `k8s/kustomization.yaml` | Deploy all resources together |
+
+## 6.2 What is Kubernetes?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    KUBERNETES (K8s)                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  "Container orchestration platform"                         │
+│                                                             │
+│  Docker: Run ONE container                                  │
+│  Kubernetes: Run THOUSANDS of containers across MANY servers│
+│                                                             │
+│  K8s provides:                                              │
+│  ✓ Automatic scaling (more traffic → more containers)       │
+│  ✓ Self-healing (container dies → new one starts)          │
+│  ✓ Load balancing (distribute traffic evenly)              │
+│  ✓ Rolling updates (update without downtime)               │
+│  ✓ Service discovery (containers find each other)          │
+│  ✓ Secret management (store passwords safely)              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 6.3 K8s Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  KUBERNETES CLUSTER                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              CONTROL PLANE (Master)                 │    │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐          │    │
+│  │  │API Server │ │ Scheduler │ │Controller │          │    │
+│  │  │           │ │           │ │ Manager   │          │    │
+│  │  └───────────┘ └───────────┘ └───────────┘          │    │
+│  │                    │                                │    │
+│  │              ┌─────┴─────┐                          │    │
+│  │              │   etcd    │  (cluster state DB)      │    │
+│  │              └───────────┘                          │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                          │                                  │
+│                          │ kubectl / API                    │
+│                          ▼                                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                WORKER NODES                         │    │
+│  │                                                     │    │
+│  │  ┌─────────────────┐    ┌─────────────────┐         │    │
+│  │  │    Node 1       │    │    Node 2       │         │    │
+│  │  │  ┌───┐ ┌───┐    │    │  ┌───┐ ┌───┐    │         │    │
+│  │  │  │Pod│ │Pod│    │    │  │Pod│ │Pod│    │         │    │
+│  │  │  └───┘ └───┘    │    │  └───┘ └───┘    │         │    │
+│  │  │    kubelet      │    │    kubelet      │         │    │
+│  │  └─────────────────┘    └─────────────────┘         │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 6.4 Core K8s Concepts
+
+### The Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  K8s RESOURCE HIERARCHY                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Deployment                                                 │
+│      │                                                      │
+│      │ manages                                              │
+│      ▼                                                      │
+│  ReplicaSet                                                 │
+│      │                                                      │
+│      │ manages                                              │
+│      ▼                                                      │
+│  ┌─────┐  ┌─────┐  ┌─────┐                                │
+│  │ Pod │  │ Pod │  │ Pod │   (replicas=3)                  │
+│  └──┬──┘  └──┬──┘  └──┬──┘                                │
+│     │        │        │                                     │
+│     ▼        ▼        ▼                                     │
+│  Container Container Container                              │
+│                                                             │
+│  Service ──────────────────► Load balances to all Pods     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Pod
+
+```yaml
+# Smallest deployable unit in K8s
+# Contains one or more containers that share:
+# - Network (same IP, localhost communication)
+# - Storage (shared volumes)
+# - Lifecycle (start/stop together)
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8000
+```
+
+### Deployment
+
+```yaml
+# Manages Pods declaratively
+# You describe WHAT you want, K8s figures out HOW
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3              # Run 3 identical pods
+  selector:
+    matchLabels:
+      app: my-app          # Manage pods with this label
+  template:                # Pod template
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: app
+          image: my-app:v1
+```
+
+### Service
+
+```yaml
+# Stable network endpoint for Pods
+# Pods come and go, Services stay
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: my-app           # Route to pods with this label
+  ports:
+    - port: 80            # Service listens on
+      targetPort: 8000    # Forward to container port
+```
+
+## 6.5 Service Types Explained
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SERVICE TYPES                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. ClusterIP (default)                                     │
+│     - Internal IP only                                      │
+│     - Only accessible within cluster                        │
+│     - Use for: internal services (API ← Frontend)           │
+│                                                             │
+│  2. NodePort                                                │
+│     - Exposes on each node's IP                            │
+│     - Port range: 30000-32767                              │
+│     - Use for: development, testing                         │
+│                                                             │
+│  3. LoadBalancer                                            │
+│     - Creates external load balancer                        │
+│     - Cloud provider provisions real LB                     │
+│     - Use for: production external access                   │
+│                                                             │
+│  4. ExternalName                                            │
+│     - Maps to external DNS                                  │
+│     - Use for: external services                            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 6.6 Our K8s Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              IRIS CLASSIFIER K8s ARCHITECTURE               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Namespace: iris-classifier                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                                                      │   │
+│  │   ┌──────────────────────────────────────────────┐  │   │
+│  │   │              Ingress (optional)               │  │   │
+│  │   │         iris.example.com                      │  │   │
+│  │   └─────────────────┬────────────────────────────┘  │   │
+│  │                     │                                │   │
+│  │          ┌──────────┴──────────┐                    │   │
+│  │          │                     │                    │   │
+│  │          ▼                     ▼                    │   │
+│  │   ┌─────────────┐       ┌─────────────┐            │   │
+│  │   │  Frontend   │       │    API      │            │   │
+│  │   │  Service    │       │  Service    │            │   │
+│  │   │ (NodePort)  │       │ (ClusterIP) │            │   │
+│  │   │  :30501     │       │   :8000     │            │   │
+│  │   └──────┬──────┘       └──────┬──────┘            │   │
+│  │          │                     │                    │   │
+│  │          ▼                     ▼                    │   │
+│  │   ┌─────────────┐       ┌─────────────┐            │   │
+│  │   │ Frontend    │       │    API      │            │   │
+│  │   │ Deployment  │──────▶│ Deployment  │            │   │
+│  │   │ (2 replicas)│ HTTP  │ (2 replicas)│            │   │
+│  │   └─────────────┘       └─────────────┘            │   │
+│  │                                                      │   │
+│  │   ┌──────────────────────────────────────────────┐  │   │
+│  │   │              ConfigMap                        │  │   │
+│  │   │    (API_URL, ENV vars)                        │  │   │
+│  │   └──────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 6.7 Running Locally with Minikube
+
+### Install Minikube
+
+```bash
+# Windows (with chocolatey)
+choco install minikube
+
+# Or download from https://minikube.sigs.k8s.io/docs/start/
+```
+
+### Start Cluster
+
+```bash
+# Start minikube
+minikube start
+
+# Verify
+kubectl cluster-info
+```
+
+### Load Local Images
+
+```bash
+# Point to minikube's Docker daemon
+eval $(minikube docker-env)
+
+# Build images (now they're in minikube)
+docker build -f docker/Dockerfile.api -t iris-api:latest .
+docker build -f docker/Dockerfile.frontend -t iris-frontend:latest .
+```
+
+### Deploy Application
+
+```bash
+# Deploy all resources
+kubectl apply -k k8s/
+
+# Check status
+kubectl get all -n iris-classifier
+
+# Watch pods
+kubectl get pods -n iris-classifier -w
+```
+
+### Access Application
+
+```bash
+# Get frontend URL
+minikube service iris-frontend-service -n iris-classifier --url
+
+# Or use port-forward
+kubectl port-forward svc/iris-frontend-service 8501:8501 -n iris-classifier
+```
+
+## 6.8 Useful kubectl Commands
+
+```bash
+# Get resources
+kubectl get pods -n iris-classifier
+kubectl get services -n iris-classifier
+kubectl get deployments -n iris-classifier
+kubectl get all -n iris-classifier
+
+# Describe (detailed info)
+kubectl describe pod <pod-name> -n iris-classifier
+kubectl describe service iris-api-service -n iris-classifier
+
+# Logs
+kubectl logs <pod-name> -n iris-classifier
+kubectl logs -f <pod-name> -n iris-classifier  # Follow
+
+# Shell into pod
+kubectl exec -it <pod-name> -n iris-classifier -- /bin/bash
+
+# Delete
+kubectl delete -k k8s/
+kubectl delete pod <pod-name> -n iris-classifier
+
+# Scale
+kubectl scale deployment iris-api --replicas=5 -n iris-classifier
+
+# Rollout
+kubectl rollout status deployment/iris-api -n iris-classifier
+kubectl rollout undo deployment/iris-api -n iris-classifier
+```
+
+## 6.9 Key Concepts Summary
+
+| Concept | Purpose | Analogy |
+|---------|---------|---------|
+| **Pod** | Smallest unit, runs containers | A single VM |
+| **Deployment** | Manages pod replicas | Auto-scaling group |
+| **Service** | Stable network endpoint | Load balancer |
+| **ConfigMap** | Configuration data | Environment file |
+| **Secret** | Sensitive data | Password vault |
+| **Namespace** | Resource isolation | Folder/project |
+| **Ingress** | External HTTP routing | Reverse proxy |
+
+---
+
+## Next Step: Step 7 - AWS Infrastructure
+
+In Step 7, we will:
+1. Set up ECR (Elastic Container Registry)
+2. Set up EKS (Elastic Kubernetes Service)
+3. Configure networking and load balancer
 
 ---
 
@@ -2414,5 +2755,5 @@ In Step 6, we will:
 
 ---
 
-*Last Updated: Step 5 - COMPLETED*
-*Next: Step 6 - Kubernetes Deployment*
+*Last Updated: Step 6 - COMPLETED*
+*Next: Step 7 - AWS Infrastructure*

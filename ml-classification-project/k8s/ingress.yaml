@@ -1,0 +1,131 @@
+# =============================================================================
+# Kubernetes Ingress
+# =============================================================================
+#
+# STUDY NOTE: What is an Ingress?
+# -------------------------------
+# Ingress manages external access to services in a cluster.
+# It provides:
+# - HTTP/HTTPS routing
+# - Path-based routing (/api → api-service, / → frontend-service)
+# - Host-based routing (api.example.com, app.example.com)
+# - SSL/TLS termination
+# - Load balancing
+#
+# Ingress vs LoadBalancer Service:
+# ┌────────────────────────────────────────────────────────────┐
+# │                                                            │
+# │  LoadBalancer Service:                                     │
+# │  - One external IP per service                             │
+# │  - Expensive (each LB costs money)                         │
+# │  - Limited routing options                                 │
+# │                                                            │
+# │  Ingress:                                                  │
+# │  - Single entry point for multiple services                │
+# │  - Path/host based routing                                 │
+# │  - Cost effective                                          │
+# │  - Requires Ingress Controller (nginx, traefik, etc.)      │
+# │                                                            │
+# └────────────────────────────────────────────────────────────┘
+#
+# IMPORTANT: Requires an Ingress Controller to be installed!
+# - minikube: minikube addons enable ingress
+# - AWS: AWS Load Balancer Controller
+# - nginx: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/...
+#
+# Apply: kubectl apply -f k8s/ingress.yaml
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iris-ingress
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+  annotations:
+    # STUDY NOTE: Ingress Annotations
+    # --------------------------------
+    # Annotations configure the Ingress Controller behavior.
+    # Different controllers use different annotations.
+
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # SSL redirect (uncomment for production)
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+    # AWS ALB annotations (for EKS)
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+spec:
+  # Ingress class (which controller handles this Ingress)
+  ingressClassName: nginx
+
+  # ---------------------------------------------------------------------------
+  # Routing Rules
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Ingress Rules
+  # -------------------------
+  # Rules define how to route traffic based on host and path.
+  #
+  # Example routing:
+  # - iris.example.com/        → frontend-service
+  # - iris.example.com/api/    → api-service
+  # - iris.example.com/docs    → api-service
+  rules:
+    # Default host (or specify a domain like iris.example.com)
+    - http:
+        paths:
+          # API endpoints
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: iris-api-service
+                port:
+                  number: 8000
+
+          # API documentation
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: iris-api-service
+                port:
+                  number: 8000
+
+          # Health check endpoint
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: iris-api-service
+                port:
+                  number: 8000
+
+          # Frontend (catch-all, must be last)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: iris-frontend-service
+                port:
+                  number: 8501
+
+  # ---------------------------------------------------------------------------
+  # TLS Configuration (for HTTPS)
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: TLS in Ingress
+  # --------------------------
+  # Uncomment to enable HTTPS. Requires a TLS secret with cert and key.
+  #
+  # Create secret:
+  # kubectl create secret tls iris-tls --cert=cert.pem --key=key.pem
+  #
+  # tls:
+  #   - hosts:
+  #       - iris.example.com
+  #     secretName: iris-tls

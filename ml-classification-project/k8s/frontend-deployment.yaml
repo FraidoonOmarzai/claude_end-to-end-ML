@@ -1,0 +1,98 @@
+# =============================================================================
+# Kubernetes Deployment for Streamlit Frontend
+# =============================================================================
+#
+# STUDY NOTE: Frontend Deployment
+# -------------------------------
+# Similar to API deployment, but:
+# - Different image
+# - Connects to API via K8s Service name
+# - May need different resource requirements
+#
+# Apply: kubectl apply -f k8s/frontend-deployment.yaml
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iris-frontend
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+    component: frontend
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: iris-classifier
+      component: frontend
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  template:
+    metadata:
+      labels:
+        app: iris-classifier
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: fraidoonjan/iris-frontend:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8501
+              protocol: TCP
+
+          # Environment variables
+          env:
+            # API URL using K8s service discovery
+            # STUDY NOTE: Service Discovery in K8s
+            # ------------------------------------
+            # Services can be reached by name within the same namespace.
+            # Full DNS: <service>.<namespace>.svc.cluster.local
+            # Short form: <service> (same namespace)
+            - name: API_URL
+              value: "http://iris-api-service:8000"
+            - name: STREAMLIT_SERVER_PORT
+              value: "8501"
+            - name: STREAMLIT_SERVER_ADDRESS
+              value: "0.0.0.0"
+
+          # Resources
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          # Health checks
+          # Streamlit health endpoint
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

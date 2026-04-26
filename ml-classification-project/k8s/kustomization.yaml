@@ -1,0 +1,50 @@
+# =============================================================================
+# Kustomization File
+# =============================================================================
+#
+# STUDY NOTE: What is Kustomize?
+# ------------------------------
+# Kustomize is a built-in Kubernetes tool for customizing configurations.
+# Instead of using Helm templates, you can use Kustomize to:
+# - Combine multiple YAML files
+# - Add common labels/annotations
+# - Override values for different environments
+# - Generate ConfigMaps and Secrets
+#
+# Benefits:
+# - Built into kubectl (no extra tools needed)
+# - Pure YAML (no templating language)
+# - Good for simple customizations
+#
+# Usage:
+#   kubectl apply -k k8s/           # Apply all resources
+#   kubectl kustomize k8s/          # Preview generated YAML
+#   kubectl delete -k k8s/          # Delete all resources
+#
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace for all resources
+namespace: iris-classifier
+
+# Resources to include (order matters for dependencies)
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  # Uncomment when Ingress Controller is installed
+  # - ingress.yaml
+
+# Common labels added to all resources
+commonLabels:
+  app: iris-classifier
+  managed-by: kustomize
+
+# Common annotations
+commonAnnotations:
+  project: iris-ml-classification

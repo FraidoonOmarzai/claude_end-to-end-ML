@@ -1,0 +1,182 @@
+# =============================================================================
+# Kubernetes Deployment for FastAPI Backend
+# =============================================================================
+#
+# STUDY NOTE: What is a Deployment?
+# ---------------------------------
+# A Deployment manages a set of identical Pods (replicas).
+# It provides:
+# - Declarative updates: Describe desired state, K8s makes it happen
+# - Rolling updates: Update pods gradually without downtime
+# - Rollback: Revert to previous version if something goes wrong
+# - Scaling: Easily increase/decrease replicas
+# - Self-healing: Automatically replaces failed pods
+#
+# Deployment → ReplicaSet → Pods
+#
+# Apply: kubectl apply -f k8s/api-deployment.yaml
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iris-api
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+    component: api
+spec:
+  # ---------------------------------------------------------------------------
+  # Replicas
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Replicas
+  # --------------------
+  # Number of identical pod instances to run.
+  # More replicas = higher availability and throughput
+  # Start with 2 for high availability (if one fails, other serves traffic)
+  replicas: 2
+
+  # ---------------------------------------------------------------------------
+  # Selector
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Selector
+  # --------------------
+  # How the Deployment finds which Pods to manage.
+  # Must match the labels in the Pod template below.
+  selector:
+    matchLabels:
+      app: iris-classifier
+      component: api
+
+  # ---------------------------------------------------------------------------
+  # Update Strategy
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Rolling Update Strategy
+  # -----------------------------------
+  # Controls how pods are updated when you change the deployment.
+  #
+  # maxUnavailable: Max pods that can be unavailable during update
+  # maxSurge: Max extra pods that can be created during update
+  #
+  # With 2 replicas, maxUnavailable=1, maxSurge=1:
+  # 1. Create 1 new pod (now 3 total, 2 old + 1 new)
+  # 2. Once new pod ready, terminate 1 old pod
+  # 3. Repeat until all pods are new
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  # ---------------------------------------------------------------------------
+  # Pod Template
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Pod Template
+  # ------------------------
+  # Defines what each Pod looks like.
+  # All pods created by this Deployment use this template.
+  template:
+    metadata:
+      labels:
+        app: iris-classifier
+        component: api
+      # Annotations for monitoring (Prometheus)
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # -----------------------------------------------------------------------
+      # Containers
+      # -----------------------------------------------------------------------
+      # STUDY NOTE: Containers in a Pod
+      # -------------------------------
+      # A Pod can have multiple containers that share:
+      # - Network namespace (same IP, can use localhost)
+      # - Storage volumes
+      # - Lifecycle
+      #
+      # Usually 1 main container + optional sidecars (logging, proxy, etc.)
+      containers:
+        - name: api
+          # Image to use (will be replaced with ECR URL in production)
+          # STUDY NOTE: Image Tags
+          # ----------------------
+          # - latest: Not recommended (ambiguous, caching issues)
+          # - v1.0.0: Semantic versioning (recommended)
+          # - abc123: Git commit hash (for traceability)
+          image: fraidoonjan/iris-api:latest
+          imagePullPolicy: IfNotPresent  # Use local image if available
+
+          # Container port
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          # Environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: iris-config
+
+          # -----------------------------------------------------------------
+          # Resource Requests and Limits
+          # -----------------------------------------------------------------
+          # STUDY NOTE: Resource Management
+          # -------------------------------
+          # requests: Minimum resources guaranteed to the container
+          # limits: Maximum resources the container can use
+          #
+          # K8s scheduler uses requests to decide where to place pods.
+          # If container exceeds memory limit, it gets OOMKilled.
+          # If container exceeds CPU limit, it gets throttled.
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"      # 100 millicores = 0.1 CPU
+            limits:
+              memory: "512Mi"
+              cpu: "500m"      # 500 millicores = 0.5 CPU
+
+          # -----------------------------------------------------------------
+          # Health Checks
+          # -----------------------------------------------------------------
+          # STUDY NOTE: Probes
+          # ------------------
+          # livenessProbe: Is the container alive?
+          #   - If fails, K8s restarts the container
+          #   - Use for detecting deadlocks, infinite loops
+          #
+          # readinessProbe: Is the container ready to serve traffic?
+          #   - If fails, K8s removes pod from Service endpoints
+          #   - Use for startup time, dependency checks
+          #
+          # startupProbe: Has the container started?
+          #   - Disables liveness/readiness until it succeeds
+          #   - Use for slow-starting containers
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10   # Wait before first check
+            periodSeconds: 30         # Check every 30 seconds
+            timeoutSeconds: 5         # Timeout for each check
+            failureThreshold: 3       # Failures before restart
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      # -----------------------------------------------------------------------
+      # Pod Settings
+      # -----------------------------------------------------------------------
+      # Restart policy (Always for Deployments)
+      restartPolicy: Always
+
+      # Graceful shutdown timeout
+      terminationGracePeriodSeconds: 30

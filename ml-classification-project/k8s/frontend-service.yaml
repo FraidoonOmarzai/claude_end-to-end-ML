@@ -1,0 +1,42 @@
+# =============================================================================
+# Kubernetes Service for Streamlit Frontend
+# =============================================================================
+#
+# STUDY NOTE: NodePort Service
+# ----------------------------
+# We use NodePort here so you can access the frontend from your browser
+# during local development with minikube/kind.
+#
+# In production, you'd typically use:
+# - LoadBalancer type (cloud provider creates external LB)
+# - Ingress resource (more flexible, single entry point)
+#
+# Apply: kubectl apply -f k8s/frontend-service.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: iris-frontend-service
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+    component: frontend
+spec:
+  # NodePort for external access during local development
+  # STUDY NOTE: NodePort Range
+  # --------------------------
+  # NodePort must be in range 30000-32767
+  # If not specified, K8s assigns one automatically
+  type: NodePort
+
+  selector:
+    app: iris-classifier
+    component: frontend
+
+  ports:
+    - name: http
+      port: 8501          # Service port
+      targetPort: 8501    # Container port
+      nodePort: 30501     # External port (access via localhost:30501 with minikube)
+      protocol: TCP

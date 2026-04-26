@@ -1,0 +1,115 @@
+# =============================================================================
+# Kubernetes Service for FastAPI Backend
+# =============================================================================
+#
+# STUDY NOTE: What is a Service?
+# ------------------------------
+# A Service provides a stable network endpoint for a set of Pods.
+# Pods are ephemeral (they come and go), but Services are stable.
+#
+# Service provides:
+# - Stable IP address (doesn't change when pods restart)
+# - DNS name (iris-api-service.iris-classifier.svc.cluster.local)
+# - Load balancing across pods
+# - Service discovery
+#
+# Service Types:
+# - ClusterIP: Internal only (default)
+# - NodePort: Exposes on each node's IP at a static port
+# - LoadBalancer: Provisions external load balancer (cloud)
+# - ExternalName: Maps to external DNS name
+#
+# Apply: kubectl apply -f k8s/api-service.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: iris-api-service
+  namespace: iris-classifier
+  labels:
+    app: iris-classifier
+    component: api
+spec:
+  # ---------------------------------------------------------------------------
+  # Service Type
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: ClusterIP vs NodePort vs LoadBalancer
+  # -------------------------------------------------
+  #
+  # ClusterIP (default):
+  # ┌─────────────────────────────────────────┐
+  # │  Cluster                                │
+  # │  ┌─────────────┐                        │
+  # │  │   Service   │ ← Only accessible      │
+  # │  │  ClusterIP  │   inside cluster       │
+  # │  └──────┬──────┘                        │
+  # │         ↓                               │
+  # │  ┌─────┐ ┌─────┐                        │
+  # │  │ Pod │ │ Pod │                        │
+  # │  └─────┘ └─────┘                        │
+  # └─────────────────────────────────────────┘
+  #
+  # NodePort:
+  # ┌─────────────────────────────────────────┐
+  # │  Cluster                                │
+  # │  ┌─────────────┐                        │
+  # │  │   Service   │ ← Accessible via       │
+  # │  │  NodePort   │   NodeIP:30000-32767   │
+  # │  └──────┬──────┘                        │
+  # │         ↓                               │
+  # │  ┌─────┐ ┌─────┐                        │
+  # │  │ Pod │ │ Pod │                        │
+  # │  └─────┘ └─────┘                        │
+  # └─────────────────────────────────────────┘
+  #          ↑
+  #     External access: <NodeIP>:30080
+  #
+  # LoadBalancer (cloud):
+  # ┌─────────────────────────────────────────┐
+  # │  Cloud Provider                         │
+  # │  ┌─────────────────┐                    │
+  # │  │ Load Balancer   │ ← Public IP        │
+  # │  │ (AWS ELB/ALB)   │                    │
+  # │  └────────┬────────┘                    │
+  # │           ↓                             │
+  # │  ┌─────────────────────────────────┐    │
+  # │  │  Cluster                        │    │
+  # │  │  ┌─────────────┐                │    │
+  # │  │  │   Service   │                │    │
+  # │  │  └──────┬──────┘                │    │
+  # │  │         ↓                       │    │
+  # │  │  ┌─────┐ ┌─────┐                │    │
+  # │  │  │ Pod │ │ Pod │                │    │
+  # │  │  └─────┘ └─────┘                │    │
+  # │  └─────────────────────────────────┘    │
+  # └─────────────────────────────────────────┘
+
+  type: ClusterIP  # Internal service (frontend will access this)
+
+  # ---------------------------------------------------------------------------
+  # Selector
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Service Selector
+  # ----------------------------
+  # The Service routes traffic to Pods matching these labels.
+  # Must match the Pod labels in the Deployment.
+  selector:
+    app: iris-classifier
+    component: api
+
+  # ---------------------------------------------------------------------------
+  # Ports
+  # ---------------------------------------------------------------------------
+  # STUDY NOTE: Service Ports
+  # -------------------------
+  # port: The port the Service listens on
+  # targetPort: The port on the Pod to forward to
+  # protocol: TCP (default) or UDP
+  #
+  # Traffic flow: Client → Service:port → Pod:targetPort
+  ports:
+    - name: http
+      port: 8000          # Service port
+      targetPort: 8000    # Container port
+      protocol: TCP

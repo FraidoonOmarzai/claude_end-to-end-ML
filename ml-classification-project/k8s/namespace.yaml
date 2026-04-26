@@ -1,0 +1,28 @@
+# =============================================================================
+# Kubernetes Namespace
+# =============================================================================
+#
+# STUDY NOTE: What is a Namespace?
+# --------------------------------
+# Namespaces are virtual clusters within a Kubernetes cluster.
+# They provide:
+# - Isolation: Separate resources for different projects/teams
+# - Organization: Group related resources together
+# - Resource quotas: Limit resources per namespace
+# - Access control: RBAC can be scoped to namespaces
+#
+# Default namespaces:
+# - default: Where resources go if no namespace specified
+# - kube-system: Kubernetes system components
+# - kube-public: Publicly accessible resources
+#
+# Apply: kubectl apply -f k8s/namespace.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iris-classifier
+  labels:
+    app: iris-classifier
+    environment: development
